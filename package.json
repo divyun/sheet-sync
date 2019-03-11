@@ -1,5 +1,5 @@
 {
-  "name": "seed",
+  "name": "sheet-sync",
   "version": "0.0.0",
   "description": "",
   "main": "index.js",
@@ -25,7 +25,6 @@
   "devDependencies": {
     "@commitlint/cli": "^7.5.2",
     "@commitlint/core": "^7.5.2",
-    "@fullhuman/postcss-purgecss": "1.1.0",
     "autoprefixer": "9.4.10",
     "commitlint-config-gitmoji": "^1.0.1",
     "cssnano": "4.1.10",
@@ -38,6 +37,10 @@
     "tailwindcss": "0.7.4"
   },
   "dependencies": {
-    "feather-icons": "^4.19.0"
+    "dist": "^0.1.2",
+    "faker": "^4.1.0",
+    "feather-icons": "^4.19.0",
+    "handsontable": "^7.0.0",
+    "pubnub": "^4.21.7"
   }
 }
