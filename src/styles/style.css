@@ -1,0 +1,36 @@
+.sheet {
+  @apply mb-6;
+}
+
+.sheet .ht_master {
+  @apply bg-white shadow-md rounded;
+}
+
+.sheet table {
+  @apply text-left w-full border-collapse;
+}
+
+.sheet thead th {
+  @apply bg-grey-lightest font-bold uppercase text-sm text-grey-dark border-b border-grey-light;
+}
+
+.sheet thead td {
+  @apply py-4 px-6 border-b border-grey-light;
+}
+
+.spin {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  100% {
+    -webkit-transform: rotate(360deg);
+    -ms-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}

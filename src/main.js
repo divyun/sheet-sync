@@ -1,13 +1,31 @@
-import './styles';
-
 import Handsontable from 'handsontable';
 import faker from 'faker';
 
-import 'handsontable/dist/handsontable.full.min.css';
-
+import './styles';
 import pubnub from './connectors/pubnub';
+import hooks from './hooks';
+import user from './user';
 
-const hotElement = document.querySelector('#hot');
+const searchParams = new window.URLSearchParams(window.location.search);
+
+const sheetName = searchParams.get('sheet') || 'test_sheet';
+
+if (!searchParams.get('sheet')) {
+  const path = `${window.location.protocol}//${window.location.host}${window.location.pathname}?sheet=test_sheet`;
+  window.history.pushState({ path }, '', path);
+}
+
+document.getElementById('sheet-name').innerHTML = sheetName;
+document.getElementById('user')
+  .innerHTML = `<div class="flex items-baseline">
+    Welcome, ${user.name}
+    <span
+      class="contact__avatar w-6 h-6 m-2 flex flex-no-shrink justify-center items-center bg-center bg-no-repeat bg-cover text-xl text-white font-semibold uppercase text-center rounded-full"
+      style="background-color: ${user.color || 'grey'}"
+    >
+      ${user.name[0]}
+    </span>
+  </div>`;
 
 const data = [];
 
@@ -33,10 +51,9 @@ const hotSettings = {
   ],
   stretchH: 'all',
   autoWrapRow: true,
-  dropdownMenu: true,
   rowHeaders: true,
   colHeaders: [
-    'Available',
+    '',
     'Id',
     'Email',
     'Name',
@@ -50,95 +67,26 @@ const hotSettings = {
   contextMenu: true,
   licenseKey: 'non-commercial-and-evaluation',
   customBorders: true,
+  colWidths: ['7%', '16%', '38%', '39%'],
+  className: 'sheet',
 };
 
-const userColor = faker.internet.color(160, 160, 160);
+const hotElement = document.querySelector('#hot');
 
 const hot = new Handsontable(hotElement, hotSettings);
 
-const pubnubHooks = {};
-
-hot.addHook('afterChange', (changes, source) => {
-  if (source === 'sync') {
-    return;
-  }
-  changes.forEach(([row, prop, oldValue, newValue]) => pubnub.publish({
-    message: {
-      operation: 'afterChange',
-      delta: {
-        row, prop, oldValue, newValue,
-      },
-    },
-    channel: 'test_sheet',
-  }));
+document.getElementById('seed-data').addEventListener('click', () => {
+  hot.populateFromArray(data.length, 0, [[
+    faker.random.boolean(),
+    faker.random.number(),
+    faker.internet.email(),
+    faker.name.findName(),
+  ]]);
 });
 
-pubnubHooks.afterChange = ({
-  row, prop, newValue,
-}) => {
-  hot.setDataAtCell(row, hot.propToCol(prop), newValue, 'sync');
-};
-
-hot.addHook('afterCreateRow', (index, amount, source) => {
-  if (source === 'sync') {
-    return;
-  }
-  pubnub.publish({
-    message: { operation: 'afterCreateRow', delta: { index, amount } },
-    channel: 'test_sheet',
-  });
-});
-
-pubnubHooks.afterCreateRow = ({
-  index, amount,
-}) => {
-  hot.alter('insert_row', index, amount, 'sync');
-};
-
-hot.addHook('afterRemoveRow', (index, amount, source) => {
-  if (source === 'sync') {
-    return;
-  }
-  pubnub.publish({
-    message: { operation: 'afterRemoveRow', delta: { index, amount } },
-    channel: 'test_sheet',
-  });
-});
-
-pubnubHooks.afterRemoveRow = ({
-  index, amount,
-}) => {
-  hot.alter('remove_row', index, amount, 'sync');
-};
-
-hot.addHook('afterColumnSort', ([currentSortConfig], [destinationSortConfig]) => {
-  if (currentSortConfig === destinationSortConfig) {
-    return;
-  }
-
-  if (
-    currentSortConfig && destinationSortConfig
-    && currentSortConfig.column === destinationSortConfig.column
-    && currentSortConfig.sortOrder === destinationSortConfig.sortOrder
-  ) {
-    return;
-  }
-
-  pubnub.publish({
-    message: { operation: 'afterColumnSort', delta: { currentSortConfig, destinationSortConfig } },
-    channel: 'test_sheet',
-  });
-});
-
-pubnubHooks.afterColumnSort = ({
-  destinationSortConfig,
-}) => {
-  if (!destinationSortConfig) {
-    hot.getPlugin('columnSorting').clearSort();
-    return;
-  }
-  hot.getPlugin('columnSorting').sort(destinationSortConfig);
-};
+/**
+ * Record user's activity as pubunb's state
+ */
 
 hot.addHook('afterSelectionEnd', (row, col, row2, col2) => {
   pubnub.setState(
@@ -147,9 +95,9 @@ hot.addHook('afterSelectionEnd', (row, col, row2, col2) => {
         selection: {
           row, col, row2, col2,
         },
-        userColor,
+        user,
       },
-      channels: ['test_sheet'],
+      channels: [sheetName],
     },
   );
 });
@@ -158,9 +106,10 @@ hot.addHook('afterDeselect', () => {
   pubnub.setState(
     {
       state: {
-        selection: null, userColor,
+        selection: null,
+        user,
       },
-      channels: ['test_sheet'],
+      channels: [sheetName],
     },
   );
 });
@@ -187,38 +136,32 @@ function setBorders({
   });
 }
 
-document.getElementById('seed-data').addEventListener('click', () => {
-  hot.populateFromArray(data.length, 0, [[
-    faker.random.boolean(),
-    faker.random.number(),
-    faker.internet.email(),
-    faker.name.findName(),
-  ]] /* undefined, undefined, 'sync' */);
-});
-
 function fetchPresense() {
   pubnub.hereNow(
     {
-      channels: ['test_sheet'],
+      channels: [sheetName],
       includeUUIDs: true,
       includeState: true,
     },
     (status, { channels: { test_sheet: { occupants } } }) => {
       customBordersPlugin.clearBorders();
-      const html = occupants.reduce((acc, { state = {}, uuid }) => {
-        if (uuid === pubnub.getUUID()) {
+      const sessions = new Set();
+      const html = occupants.reduce((acc, { state = {} }) => {
+        if (!state.user || (state.user.uuid === user.uuid) || sessions.has(state.user.uuid)) {
           return acc;
         }
 
+        sessions.add(state.user.uuid);
+
         if (state.selection) {
-          setBorders(state.selection, state.userColor);
+          setBorders(state.selection, state.user.color);
         }
 
         return `${acc}
           <span
             class="contact__avatar w-6 h-6 m-1 flex flex-no-shrink justify-center items-center bg-center bg-no-repeat bg-cover text-xl text-white font-semibold uppercase text-center rounded-full"
-            style="background-color: ${state.userColor || 'grey'}"
-          > </span>`;
+            style="background-color: ${state.user.color || 'grey'}"
+            > ${state.user.name[0]} </span>`;
       }, '');
 
       document.getElementById('online-users').innerHTML = html;
@@ -226,11 +169,60 @@ function fetchPresense() {
   );
 }
 
+const history = [];
+
+function renderHistory() {
+  history.splice(7);
+
+  const html = history.reduce((acc, { timetoken, entry }) => `${acc}
+    <div class="hover:bg-indigo-lightest border-b border-grey-light cursor-pointer" id="event-${timetoken}">
+      <div class="py-2 px-6 border-grey-light text-xs" id="event-${timetoken}__operation">
+        ${entry.operation.replace(/([A-Z])/g, ' $1').replace('after ', '')}
+        <small id="event-${timetoken}__timestamp">at ${timetoken}</small>
+      </div>
+      <div class="py-2 px-6 border-grey-light text-xs hidden bg-grey-lighter" id="event-${timetoken}__delta-container">
+        <pre id="event-${timetoken}__delta">${JSON.stringify(entry.delta, null, 1)}</pre>
+      </div>
+    </div>`, '');
+
+  document.getElementById('history-table__body').innerHTML = html;
+}
+
+document.getElementById('clear-data').addEventListener('click', () => {
+  data.length = 0;
+  history.length = 0;
+  pubnub.deleteMessages({
+    channel: sheetName,
+  }, renderHistory);
+  pubnub.publish({
+    channel: sheetName,
+    message: { operation: 'afterClearHistory' },
+  });
+});
+
+document.getElementById('history-table__body').addEventListener('click', ({ target: { id } }) => {
+  const deltaEl = document.getElementById(id.replace(/operation|timestamp|delta/g, 'delta-container'));
+  deltaEl.classList.toggle('hidden');
+});
+
+/**
+ * Listen for document and state changes
+ */
+
 pubnub.addListener({
-  message({ publisher, message: { operation, delta } }) {
+  message({ publisher, message: { operation, delta }, timetoken }) {
     if (publisher !== pubnub.getUUID()) {
-      pubnubHooks[operation](delta);
+      if (operation === 'afterClearHistory') {
+        data.length = 0;
+        history.length = 0;
+        hot.render();
+      } else {
+        hooks.replay[operation](hot, delta);
+      }
     }
+
+    history.unshift({ entry: { operation, delta }, timetoken });
+    renderHistory();
   },
   presence({ uuid }) {
     if (uuid === pubnub.getUUID()) {
@@ -240,9 +232,46 @@ pubnub.addListener({
   },
 });
 
-pubnub.subscribe({
-  channels: ['test_sheet'],
-  withPresence: true,
-});
 
-fetchPresense();
+/**
+ * Fetch Previous Logs and replay before subscriptions
+ */
+
+pubnub.history({
+  channel: [sheetName],
+}, (status, { messages }) => {
+  messages.forEach((message) => {
+    history.unshift(message);
+    hooks.replay[message.entry.operation](hot, message.entry.delta);
+  });
+
+  renderHistory();
+
+  pubnub.subscribe({
+    channels: [sheetName],
+    withPresence: true,
+  });
+
+  pubnub.setState(
+    {
+      state: {
+        selection: null,
+        user,
+      },
+      channels: [sheetName],
+    },
+  );
+
+  Object.keys(hooks.record).forEach((hook) => {
+    hot.addHook(hook, hooks.record[hook](pubnub, sheetName));
+  });
+
+  fetchPresense();
+
+  /**
+   * Hide Loader
+   */
+
+  document.getElementById('loader').classList.remove('flex');
+  document.getElementById('loader').classList.add('hidden');
+});

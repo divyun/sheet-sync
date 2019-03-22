@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "parcel serve --no-cache src/index.html",
+    "develop": "parcel serve src/index.html",
     "build": "parcel build src/index.html"
   },
   "keywords": [],
@@ -23,9 +23,13 @@
     ]
   },
   "devDependencies": {
+    "@babel/core": "^7.4.0",
+    "@babel/plugin-proposal-class-properties": "^7.4.0",
+    "@babel/plugin-transform-runtime": "^7.4.0",
     "@commitlint/cli": "^7.5.2",
     "@commitlint/core": "^7.5.2",
     "autoprefixer": "9.4.10",
+    "babel-eslint": "^10.0.1",
     "commitlint-config-gitmoji": "^1.0.1",
     "cssnano": "4.1.10",
     "eslint": "^5.15.1",
@@ -33,7 +37,8 @@
     "eslint-plugin-import": "^2.16.0",
     "husky": "^1.3.1",
     "lint-staged": "^8.1.5",
-    "parcel-bundler": "^1.12.0",
+    "parcel-bundler": "^1.12.3",
+    "parcel-plugin-eslint": "^1.0.7",
     "tailwindcss": "0.7.4"
   },
   "dependencies": {
@@ -42,5 +47,8 @@
     "feather-icons": "^4.19.0",
     "handsontable": "^7.0.0",
     "pubnub": "^4.21.7"
-  }
+  },
+  "browserslist": [
+    "last 2 version"
+  ]
 }
