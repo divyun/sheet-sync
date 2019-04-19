@@ -143,7 +143,8 @@ function fetchPresense() {
       includeUUIDs: true,
       includeState: true,
     },
-    (status, { channels: { test_sheet: { occupants } } }) => {
+    (status, { channels }) => {
+      const { occupants } = channels[sheetName];
       customBordersPlugin.clearBorders();
       const sessions = new Set();
       const html = occupants.reduce((acc, { state = {} }) => {
@@ -242,7 +243,9 @@ pubnub.history({
 }, (status, { messages }) => {
   messages.forEach((message) => {
     history.unshift(message);
-    hooks.replay[message.entry.operation](hot, message.entry.delta);
+    if (hooks.replay[message.entry.operation]) {
+      hooks.replay[message.entry.operation](hot, message.entry.delta);
+    }
   });
 
   renderHistory();
