@@ -45,7 +45,7 @@
     "dist": "^0.1.2",
     "faker": "^4.1.0",
     "feather-icons": "^4.19.0",
-    "handsontable": "^7.0.0",
+    "handsontable": "^7.4.2",
     "pubnub": "^4.21.7"
   },
   "browserslist": [
